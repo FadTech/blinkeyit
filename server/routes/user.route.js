@@ -1,5 +1,8 @@
 import {Router as userRouter} from 'express';
-import { registerUserController ,verifyEmailController,loginUserController } from '../controllers/user.controller.js';
+import auth from '../middleware/auth.js';
+import upload from '../middleware/multer.js';
+import { UploadeAvatar } from '../controllers/user.controller.js';
+import { registerUserController ,verifyEmailController,loginUserController, logoutUserController,updateUserDetails } from '../controllers/user.controller.js';
 
 const router = userRouter();
 
@@ -8,5 +11,9 @@ router.post('/register', registerUserController);
 router.post('/verify-email', verifyEmailController);
 
 router.post('/login', loginUserController);
+
+router.get('/logout',auth, logoutUserController );
+router.put('/upload-avatar', upload.single('avatar'), auth, UploadeAvatar);
+router.put('/update-user', auth, updateUserDetails);
 
 export default router;

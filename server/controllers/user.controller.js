@@ -3,6 +3,9 @@ import UserModel from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import verifyEmailTemplate from "../utils/verifyEmailTemplate.js";
 import { response } from "express";
+import generateAccessToken from "../utils/generateAccesstoken.js";
+import generateRefreshToken from "../utils/genereteRefreshtoken.js";
+import uploadImageCloudinary from "../utils/uploadimageCloudinary.js";
 
 
 export async function registerUserController(req, res) {
@@ -72,7 +75,7 @@ export async function registerUserController(req, res) {
     }
 }
 
-export async function verifyEmailController(req, res) {
+export async function verifyEmailController(req,res) {
     try {
 
         const { code } = req.body
@@ -113,6 +116,14 @@ export async function loginUserController(req, res) {
 
         const { email, password } = req.body
 
+        if (!email || !password) {
+            return res.status(400).json({
+                message: "Provide email,password",
+                error: true,
+                success: false
+            })
+        }
+
         const user = await UserModel.findOne({ email })
         if (!user) {
             return res.status(400).json({
@@ -146,11 +157,11 @@ export async function loginUserController(req, res) {
             httpOnly: true,
             secure: true,
             sameSite: "None",
+            path: "/",
         };
 
-        response.cookie("accessToken", accessToken,cookieOptions);
-        response.cookie("refreshToken", refreshToken,cookieOptions);
-
+        res.cookie("accessToken", accessToken,cookieOptions);
+        res.cookie("refresh_token", refreshToken,cookieOptions);
 
         return res.json({
             message: "Login successful",
@@ -158,7 +169,8 @@ export async function loginUserController(req, res) {
             success: true,
             data: {
                 accessToken,
-                refreshToken
+                refreshToken,
+               
             }
         })
     } catch (error) {
@@ -167,5 +179,106 @@ export async function loginUserController(req, res) {
             error: true,
             success: false,
         })
+    }
+}
+
+// logout controller
+
+export async function logoutUserController(req,res) {
+    try {
+        const userId = req.userid;
+        
+        if (!userId) {
+            return res.status(400).json({
+                message: "User not found",
+                error: true,
+                success: false
+            })
+        }
+        const cookiesOptions = {
+            httpOnly: true,
+            secure: true,
+            sameSite: "None",
+            path: "/",
+        };
+        res.clearCookie("accessToken", cookiesOptions);
+        res.clearCookie("refresh_token", cookiesOptions);
+
+       await UserModel.findByIdAndUpdate(userId, {
+                $set: { refresh_token: null }
+        });
+
+        return res.json({
+            message: "Logout successful",
+            error: false,
+            success: true
+        })
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false,
+        })
+    }
+}
+
+export async function UploadeAvatar(req, res) {
+    try {
+         const userId = req.userid;
+        const image = req.file;
+
+        const uploadedImage = await uploadImageCloudinary(image);
+        await UserModel.findByIdAndUpdate(userId, {
+            $set: { profileImage: uploadedImage.secure_url }
+        });
+        return res.json({
+            message: "Avatar uploaded successfully",
+            error: false,
+            success: true
+        });
+    } catch (error) {
+
+          console.error("Erreur uploadAvatar :", error);
+
+        return res.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false,
+        })
+    }
+}
+
+export async function updateUserDetails(req, res) {
+    try {
+        const userId = req.userid;
+        const { name, email, mobile, password } = req.body;
+        let hashPassword = null;
+
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            hashPassword = await bcrypt.hash(password, salt);
+
+        }
+
+        const updateData = await UserModel.findByIdAndUpdate(userId, {
+            ...(name && { name }),
+            ...(email && { email }),
+            ...(mobile && { mobile }),
+            ...(password && { password: hashPassword })
+            })
+            return res.json({
+                message: "User details updated successfully",
+                error: false,
+                success: true,
+                data: updateData
+            })
+        
+    } catch (error) {
+        console.error("Erreur updateUserDetails :", error);
+        return res.status(500).json({
+            message: error.message || error,
+            error: true,
+            success: false,
+        });
     }
 }
